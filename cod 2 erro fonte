@@ -1,0 +1,104 @@
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.PDPageContentStream.AppendMode;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.font.PDType0Font;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Calendar;
+
+public class Main {
+    private static final float TABLE_X = 50;
+    private static final float TABLE_Y = 500;
+    private static final float TABLE_WIDTH = 500;
+
+    public static void main(String[] args) {
+        String link = "https://www.leroymerlin.com.br/cadeira-de-resina-sem-braco-cinza-safira-tramontina_89672296";
+
+        try {
+            Document doc = Jsoup.connect(link).get();
+            String titulo = doc.title();
+            String dimensoes = doc.select("table").first().select("tr:contains(Dimensão) > td").text();
+            String imgUrl = doc.select("body > div:nth-child(11) > div.new-product-wrapper > div > div.first-break > div.product-body > div.product-info > div.product-carousel > div.margin-bottom img").attr("src");
+            BufferedImage imagem = ImageIO.read(new URL(imgUrl));
+            int newWidth = 200;
+            int newHeight = (int) Math.round((double) newWidth / imagem.getWidth() * imagem.getHeight());
+            BufferedImage resizedImage = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = resizedImage.createGraphics();
+            g.drawImage(imagem, 0, 0, newWidth, newHeight, null);
+            g.dispose();
+
+            PDDocument document = new PDDocument();
+            PDPage page = new PDPage(PDRectangle.A4);
+            document.addPage(page);
+
+            PDType0Font font = null; // Movido para fora do bloco 'else'
+            PDPageContentStream contentStream = new PDPageContentStream(document, page, AppendMode.APPEND, true);
+            contentStream.beginText();
+            
+            InputStream fontStream = Main.class.getResourceAsStream("/fonts/arial.ttf");
+            if (fontStream == null) {
+                System.out.println("Arquivo de fonte não encontrado.");
+            } else {
+                font = PDType0Font.load(document, fontStream);
+                contentStream.setFont(font, 12);
+
+                contentStream.newLineAtOffset(TABLE_X, TABLE_Y);
+                contentStream.showText("Imagem");
+                contentStream.newLine();
+                contentStream.showText("Título");
+                contentStream.newLine();
+                contentStream.showText("Dimensões");
+                contentStream.newLine();
+                contentStream.showText("Quantidade");
+            }
+
+            contentStream.endText();
+            contentStream.close();
+
+            PDPageContentStream imageStream = new PDPageContentStream(document, page, AppendMode.APPEND, true);
+            PDImageXObject pdImage = PDImageXObject.createFromByteArray(document, toByteArray(resizedImage), "image");
+            imageStream.drawImage(pdImage, TABLE_X, TABLE_Y - 20, newWidth, newHeight);
+
+            imageStream.close();
+
+            contentStream = new PDPageContentStream(document, page, AppendMode.APPEND, true);
+            contentStream.beginText();
+            contentStream.setFont(font, 12); // Agora 'font' é acessível aqui
+
+            contentStream.newLineAtOffset(TABLE_X + 100, TABLE_Y);
+            contentStream.showText(titulo);
+            contentStream.newLine();
+            contentStream.showText(dimensoes);
+            contentStream.newLine();
+            contentStream.showText("1");
+
+            contentStream.endText();
+            contentStream.close();
+
+            String pdfFileName = "produto_" + Calendar.getInstance().getTimeInMillis() + ".pdf";
+            document.save(pdfFileName);
+            document.close();
+
+            System.out.println("PDF gerado: " + pdfFileName);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static byte[] toByteArray(BufferedImage image) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        ImageIO.write(image, "jpg", baos);
+        return baos.toByteArray();
+    }
+}
