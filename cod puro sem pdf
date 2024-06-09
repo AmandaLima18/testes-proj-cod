@@ -1,0 +1,64 @@
+https://www.leroymerlin.com.br/cuba-de-embutir-gourmet-para-cozinha-68,5x20,3cm-aco-inox-304-fosco-morgana-tramontina_92087023
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.select.Elements;
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import javax.swing.*;
+
+public class Main {
+    public static void main(String[] args) {
+        String link = "https://www.leroymerlin.com.br/cuba-de-embutir-gourmet-para-cozinha-68,5x20,3cm-aco-inox-304-fosco-morgana-tramontina_92087023";
+
+        try {
+            // Conecta com o site e obtém o HTML
+            Document doc = Jsoup.connect(link).get();
+
+            // Obtém o título da página
+            String titulo = doc.title();
+            System.out.println("Nome: " + titulo);
+
+            // Obtém as dimensões do produto
+            String dimensoes = doc.select("table").first().select("tr:contains(Dimensão) > td").text();
+            System.out.println("Dimensões: " + dimensoes);
+
+            // Obtém a URL da imagem
+            String imgUrl = doc.select("body > div:nth-child(11) > div.new-product-wrapper > div > div.first-break > div.product-body > div.product-info > div.product-carousel > div.margin-bottom img").attr("src");
+
+            // Carrega a imagem
+            BufferedImage imagem = ImageIO.read(new URL(imgUrl));
+
+            // Exibe a imagem em uma janela
+            JFrame frame = new JFrame();
+            frame.getContentPane().setLayout(new FlowLayout());
+            frame.getContentPane().add(new JLabel(new ImageIcon(imagem)));
+            frame.pack();
+            frame.setVisible(true);
+
+            // Faz o download da imagem
+            downloadImage(imgUrl, titulo);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void downloadImage(String imgUrl, String nome) throws IOException {
+        URL url = new URL(imgUrl);
+        try (InputStream in = url.openStream();
+             BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(nome + ".jpg"))) {
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = in.read(buffer, 0, 1024)) != -1) {
+                out.write(buffer, 0, bytesRead);
+            }
+            System.out.println("Imagem salva como: " + nome + ".jpg");
+        }
+    }
+}
