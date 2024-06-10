@@ -1,0 +1,122 @@
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.io.File;
+import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Main {
+    private static final String URL_BANCO_DE_DADOS = "jdbc:postgresql://localhost:5432/produto";
+    private static final String USUARIO = "escritorio";
+    private static final String SENHA = "1234";
+
+    public static void main(String[] args) {
+        int numLinks = Integer.parseInt(JOptionPane.showInputDialog("Quantos links você deseja inserir?"));
+
+        List<String> links = new ArrayList<>();
+        for (int i = 0; i < numLinks; i++) {
+            String link = JOptionPane.showInputDialog("Insira o link " + (i + 1) + ":");
+            links.add(link);
+        }
+
+        try (Connection conexao = DriverManager.getConnection(URL_BANCO_DE_DADOS, USUARIO, SENHA)) {
+            for (String link : links) {
+                try {
+                    // Conecta-se ao site e obtém o HTML
+                    Document doc = Jsoup.connect(link).get();
+
+                    // Obtém o título da página
+                    String titulo = doc.title();
+                    System.out.println("Nome: " + titulo);
+
+                    // Obtém as dimensões do produto
+                    String dimensoes = doc.select("table").first().select("tr:contains(Dimensão) > td").text();
+                    System.out.println("Dimensões: " + dimensoes);
+
+                    // Obtém a URL da imagem
+                    Elements elementosImg = doc.select("img");
+                    String urlImg = null;
+                    for (Element img : elementosImg) {
+                        String src = img.attr("src");
+                        if (!src.isEmpty()) {
+                            urlImg = src;
+                            break;
+                        }
+                    }
+
+                    // Carrega a imagem
+                    BufferedImage imagem = ImageIO.read(new URL(urlImg));
+
+                    // Exibe a imagem em uma janela
+                    JFrame frame = new JFrame();
+                    frame.getContentPane().setLayout(new FlowLayout());
+                    frame.getContentPane().add(new JLabel(new ImageIcon(imagem)));
+                    frame.pack();
+                    frame.setVisible(true);
+
+                    // Faz o download da imagem
+                    baixarImagem(urlImg, titulo);
+
+                    // Armazena os dados no banco de dados
+                    armazenarDados(conexao, titulo, dimensoes, urlImg);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void armazenarDados(Connection conexao, String nome, String dimensoes, String urlImg) throws SQLException {
+        String sql = "INSERT INTO produtos (nome, dimensoes, url_imagem) VALUES (?, ?, ?)";
+        try (PreparedStatement pstmt = conexao.prepareStatement(sql)) {
+            pstmt.setString(1, nome);
+            pstmt.setString(2, dimensoes);
+            pstmt.setString(3, urlImg);
+            pstmt.executeUpdate();
+            System.out.println("Dados armazenados com sucesso no banco de dados.");
+        }
+    }
+
+    private static void baixarImagem(String urlImg, String nome) throws IOException {
+        URL url = new URL(urlImg);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        connection.connect();
+
+        // Detectar o tipo da imagem
+        String contentType = connection.getContentType();
+        String tipo = contentType.substring(contentType.indexOf('/') + 1);
+
+        // Carregar a imagem
+        BufferedImage imagem = ImageIO.read(connection.getInputStream());
+
+        // Salvar a imagem com o tipo correto
+        String nomeArquivo = nome.replaceAll("[^a-zA-Z0-9.-]", "_"); // Remover caracteres especiais do nome do arquivo
+        ImageIO.write(imagem, tipo, new File(nomeArquivo + "." + tipo));
+
+        System.out.println("Imagem salva como: " + nomeArquivo + "." + tipo);
+
+        connection.disconnect();
+    }
+}
+
+
+     
